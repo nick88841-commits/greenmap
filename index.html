@@ -13,11 +13,9 @@
     <meta name="theme-color" content="#22c55e">
     <link rel="apple-touch-icon" href="https://placehold.co/192x192/22c55e/ffffff?text=%E8%B6%B3%E8%B7%A1">
     
-    <!-- Tailwind CSS -->
+    <!-- Tailwind CSS & FontAwesome & Leaflet CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome 圖示庫 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Leaflet 地圖套件 CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <style>
@@ -45,24 +43,28 @@
             border: 1px solid rgba(255, 255, 255, 0.4);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.12);
         }
-        .pulse-dot {
-            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-            animation: pulse-green 1.8s infinite;
+
+        /* Google Maps 風格的定位圓點點擊脈衝效果 */
+        .gmap-user-container {
+            position: relative;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
         }
-        @keyframes pulse-green {
-            0% {
-                transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-            }
-            70% {
-                transform: scale(1);
-                box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
-            }
-            100% {
-                transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
-            }
+        .gmap-user-dot {
+            width: 16px;
+            height: 16px;
+            background-color: #22c55e;
+            border: 2.5px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+            z-index: 2;
         }
+
+        /* 自訂地圖控制項 */
         .leaflet-control-zoom {
             border: none !important;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
@@ -72,6 +74,28 @@
             color: #334155 !important;
             background: rgba(255,255,255,0.9) !important;
         }
+
+        .custom-footprint-popup .leaflet-popup-content-wrapper {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            padding: 4px;
+        }
+        .custom-footprint-popup .leaflet-popup-tip {
+            background: rgba(255, 255, 255, 0.92);
+        }
+
+        /* 滾輪捲動與彈出視窗樣式 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800">
@@ -79,27 +103,26 @@
     <!-- 地圖容器 -->
     <div id="map"></div>
 
-    <!-- 頂部資訊與儀表板 -->
     <div class="fixed top-3 left-3 right-3 z-20 flex flex-col space-y-2 pointer-events-none">
         <div class="glass-panel p-3.5 rounded-2xl flex items-center justify-between pointer-events-auto shadow-lg">
             <div class="flex items-center space-x-3">
                 <div class="relative flex items-center justify-center">
-                    <span class="w-3.5 h-3.5 bg-emerald-500 rounded-full pulse-dot block"></span>
+                    <span id="gps-pulse-indicator" class="w-3.5 h-3.5 bg-emerald-500 rounded-full block"></span>
                 </div>
                 <div>
                     <h1 class="font-black text-sm text-slate-800 tracking-wide flex items-center space-x-1.5">
                         <span>綠色足跡</span>
-                        <span id="gps-status-badge" class="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">自動紀錄中</span>
+                        <span id="gps-status-badge" class="bg-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">靜止待命</span>
                     </h1>
                     <p id="date-display" class="text-[11px] text-slate-500 font-medium">載入時間中...</p>
                 </div>
             </div>
             
             <div class="flex items-center space-x-2">
-                <button id="btn-recenter" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition shadow-sm active:scale-95">
-                    <i class="fa-solid fa-crosshairs text-sm"></i>
+                <button id="btn-recenter" title="回到我的位置" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition shadow-sm active:scale-95">
+                    <i class="fa-solid fa-crosshairs text-base text-emerald-600"></i>
                 </button>
-                <button id="btn-settings" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition shadow-sm active:scale-95">
+                <button id="btn-settings" title="設定" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition shadow-sm active:scale-95">
                     <i class="fa-solid fa-sliders text-sm"></i>
                 </button>
             </div>
@@ -124,7 +147,6 @@
         </div>
     </div>
 
-    <!-- 右下角歷史與功能快捷鍵 -->
     <div class="fixed bottom-6 right-4 z-20 flex flex-col space-y-3 pointer-events-auto">
         <button id="btn-history" class="w-12 h-12 rounded-2xl bg-white text-emerald-600 shadow-xl border border-emerald-100 flex flex-col items-center justify-center transition active:scale-95">
             <i class="fa-solid fa-calendar-day text-base"></i>
@@ -136,48 +158,26 @@
         </button>
     </div>
 
-    <!-- PWA 安裝提醒 Banner -->
-    <div id="pwa-install-banner" class="fixed bottom-6 left-4 right-20 z-30 hidden">
-        <div class="glass-panel p-3.5 rounded-2xl flex items-center justify-between border border-emerald-500/40 bg-emerald-950/80 text-white shadow-2xl backdrop-blur-md">
-            <div class="flex items-center space-x-2.5">
-                <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white text-sm">
-                    <i class="fa-solid fa-mobile-screen-button"></i>
-                </div>
-                <div>
-                    <p class="font-bold text-xs text-emerald-300">安裝 App 到手機</p>
-                    <p class="text-[10px] text-slate-200">享全螢幕與即時同步</p>
-                </div>
-            </div>
-            <div class="flex items-center space-x-1">
-                <button id="btn-pwa-dismiss" class="text-xs text-slate-400 px-1.5 py-1">忽略</button>
-                <button id="btn-pwa-install" class="bg-emerald-500 text-white font-bold text-xs px-2.5 py-1 rounded-lg transition shadow">
-                    安裝
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Toast 通知條 -->
     <div id="toast" class="fixed top-28 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 opacity-0 transform -translate-y-4">
         <div class="glass-panel px-4 py-2 rounded-full text-xs font-bold text-slate-800 flex items-center space-x-2 shadow-xl border border-emerald-500/30 bg-white/95">
             <span id="toast-icon"><i class="fa-solid fa-circle-check text-emerald-500"></i></span>
-            <span id="toast-msg">已自動記錄位置</span>
+            <span id="toast-msg">定位更新中</span>
         </div>
     </div>
 
     <!-- 設定 Modal Drawer -->
     <div id="modal-settings" class="fixed inset-0 z-40 hidden">
         <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" id="close-settings-bg"></div>
-        <div class="absolute bottom-0 left-0 right-0 glass-panel rounded-t-3xl p-5 border-t border-white/50 max-h-[80vh] overflow-y-auto transform transition-transform duration-300">
+        <div class="absolute bottom-0 left-0 right-0 glass-panel rounded-t-3xl p-5 border-t border-white/50 max-h-[85vh] overflow-y-auto transform transition-transform duration-300">
             <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-4"></div>
             <h2 class="text-base font-black text-slate-800 mb-4 flex items-center space-x-2">
                 <i class="fa-solid fa-gear text-emerald-500"></i>
                 <span>地圖與軌跡設定</span>
             </h2>
 
-            <!-- 地圖風格選擇 -->
             <div class="mb-5">
-                <label class="block text-xs font-bold text-slate-500 mb-2">地圖風格 (建議選 Google 淺色模式)</label>
+                <label class="block text-xs font-bold text-slate-500 mb-2">地圖風格 (建議 Google 淺色)</label>
                 <div class="grid grid-cols-2 gap-2.5">
                     <button onclick="setMapStyle('googleLight')" class="p-2.5 rounded-xl border border-slate-200 flex items-center space-x-2 text-xs font-bold bg-white shadow-sm hover:border-emerald-500 active:scale-98">
                         <span class="w-4 h-4 rounded-full bg-amber-200 border border-amber-400"></span>
@@ -198,7 +198,6 @@
                 </div>
             </div>
 
-            <!-- 綠色筆刷寬度 -->
             <div class="mb-5">
                 <div class="flex justify-between items-center mb-1">
                     <label class="text-xs font-bold text-slate-500">足跡線條粗細</label>
@@ -207,7 +206,13 @@
                 <input type="range" id="input-linewidth" min="8" max="36" value="18" class="w-full accent-emerald-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
             </div>
 
-            <!-- 資料管理 -->
+            <div class="mb-5 pt-3 border-t border-slate-200/80">
+                <button id="btn-sim-nextday" class="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-moon text-emerald-600"></i>
+                    <span>🌙 模擬跨日（測試隔日數據歸檔與足跡保留）</span>
+                </button>
+            </div>
+
             <div class="pt-3 border-t border-slate-200/80 flex space-x-2">
                 <button id="btn-export-gpx" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5">
                     <i class="fa-solid fa-file-export"></i>
@@ -220,7 +225,6 @@
         </div>
     </div>
 
-    <!-- 歷史紀錄 Drawer -->
     <div id="modal-history" class="fixed inset-0 z-40 hidden">
         <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" id="close-history-bg"></div>
         <div class="absolute bottom-0 left-0 right-0 glass-panel rounded-t-3xl p-5 border-t border-white/50 max-h-[75vh] overflow-y-auto">
@@ -229,10 +233,29 @@
                 <i class="fa-solid fa-clock-rotate-left text-emerald-500"></i>
                 <span>跨日自動歸檔紀錄</span>
             </h2>
-            <p class="text-xs text-slate-500 mb-4">每日午夜自動儲存當天數據，但地圖上的綠色足跡會永久累積保留！</p>
+            <p class="text-xs text-slate-500 mb-4">每日午夜自動歸檔數據，走過的綠色足跡永久留存！</p>
             
-            <div id="history-list-container" class="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
-                <!-- 動態注入歷史資料 -->
+            <div id="history-list-container" class="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1"></div>
+        </div>
+    </div>
+
+    <!-- PWA 安裝提醒 Banner -->
+    <div id="pwa-install-banner" class="fixed bottom-24 left-4 right-4 z-30 hidden">
+        <div class="glass-panel p-3.5 rounded-2xl flex items-center justify-between border border-emerald-500/40 bg-emerald-950/80 text-white shadow-2xl backdrop-blur-md">
+            <div class="flex items-center space-x-3">
+                <div class="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center text-white text-lg">
+                    <i class="fa-solid fa-mobile-screen-button"></i>
+                </div>
+                <div>
+                    <p class="font-bold text-xs text-emerald-300">安裝為手機 App</p>
+                    <p class="text-[10px] text-slate-200">加到主畫面，享全螢幕與即時同步</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button id="btn-pwa-dismiss" class="text-xs text-slate-400 px-2 py-1">忽略</button>
+                <button id="btn-pwa-install" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition shadow">
+                    安裝
+                </button>
             </div>
         </div>
     </div>
@@ -242,6 +265,7 @@
     <script>
         let map = null;
         let userMarker = null;
+        let accuracyCircle = null;
         let watchPositionId = null;
 
         let todayPath = [];
@@ -250,7 +274,6 @@
 
         let polylineOuter = null; 
         let polylineInner = null; 
-        let circleGroup = null; 
         let persistentHistoryGroup = null;
 
         let totalDistance = 0;
@@ -260,7 +283,9 @@
         let deferredPrompt = null;
 
         let isDemoWalking = false;
-        let demoInterval = null;
+        let isMoving = false;
+        let lastMoveTime = 0;
+        let simulatedDaysOffset = 0;
 
         const MAP_TILES = {
             googleLight: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', 
@@ -284,14 +309,39 @@
             requestWakeLock();
             setupPWAInstallPrompt();
 
+            // 每秒觸發動態計時與運動狀態檢測
             timerInterval = setInterval(() => {
-                elapsedTime++;
+                const now = getSimulatedNow();
+                
+                if (isDemoWalking || (lastMoveTime > 0 && (now - lastMoveTime) < 4000)) {
+                    isMoving = true;
+                    elapsedTime++;
+                } else {
+                    isMoving = false;
+                }
+
+                const statusBadge = document.getElementById('gps-status-badge');
+                const pulseInd = document.getElementById('gps-pulse-indicator');
+                if (statusBadge && pulseInd) {
+                    if (isMoving) {
+                        statusBadge.innerText = '移動紀錄中';
+                        statusBadge.className = 'bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold';
+                        pulseInd.className = 'w-3.5 h-3.5 bg-emerald-500 rounded-full animate-ping block';
+                    } else {
+                        statusBadge.innerText = '靜止待命';
+                        statusBadge.className = 'bg-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold';
+                        pulseInd.className = 'w-3.5 h-3.5 bg-slate-400 rounded-full block';
+                    }
+                }
+
                 updateStatsDisplay();
                 checkDailyRollover();
             }, 1000);
 
-            const dateStr = new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' });
-            document.getElementById('date-display').innerText = dateStr;
+            const simDateObj = new Date(getSimulatedNow());
+            const dateStr = simDateObj.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' });
+            const dateEl = document.getElementById('date-display');
+            if (dateEl) dateEl.innerText = dateStr;
         };
 
         function initMap() {
@@ -308,7 +358,6 @@
             L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
             persistentHistoryGroup = L.layerGroup().addTo(map);
-            circleGroup = L.layerGroup().addTo(map);
 
             polylineOuter = L.polyline([], {
                 color: '#15803d',
@@ -325,25 +374,29 @@
                 lineCap: 'round',
                 lineJoin: 'round'
             }).addTo(map);
+
+            map.on('click', onMapClick);
         }
 
         function startGPSWatch() {
             if (!navigator.geolocation) {
-                showToast('您的裝置不支援 GPS 位置獲取', 'fa-solid fa-triangle-exclamation');
+                showToast('您的裝置不支援 GPS 定位', 'fa-solid fa-triangle-exclamation');
                 return;
             }
 
             const options = {
                 enableHighAccuracy: true,
                 timeout: 15000,
-                maximumAge: 3000
+                maximumAge: 2000
             };
 
             watchPositionId = navigator.geolocation.watchPosition(
                 (pos) => {
                     const lat = pos.coords.latitude;
                     const lng = pos.coords.longitude;
-                    handleNewLocation(lat, lng);
+                    const accuracy = pos.coords.accuracy;
+                    const speed = pos.coords.speed;
+                    handleNewLocation(lat, lng, accuracy, speed);
                 },
                 (err) => {
                     console.warn('GPS Error:', err.message);
@@ -352,35 +405,67 @@
             );
         }
 
-        function handleNewLocation(lat, lng) {
+        function handleNewLocation(lat, lng, accuracy, speed) {
             const newPt = [lat, lng];
+            const now = getSimulatedNow();
             
             if (!userMarker) {
-                const userIcon = L.divIcon({
-                    className: 'custom-user-icon',
-                    html: `<div class="w-5 h-5 bg-emerald-500 rounded-full border-2 border-white shadow-lg pulse-dot"></div>`,
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
+                const gmapIcon = L.divIcon({
+                    className: 'custom-gmap-marker',
+                    html: `
+                        <div class="gmap-user-container">
+                            <div class="gmap-user-dot"></div>
+                        </div>
+                    `,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
                 });
-                userMarker = L.marker(newPt, { icon: userIcon }).addTo(map);
-                map.setView(newPt, 17);
+                userMarker = L.marker(newPt, { icon: gmapIcon }).addTo(map);
+                map.panTo(newPt);
             } else {
                 userMarker.setLatLng(newPt);
             }
 
+            if (accuracy) {
+                if (!accuracyCircle) {
+                    accuracyCircle = L.circle(newPt, {
+                        radius: accuracy,
+                        color: '#22c55e',
+                        weight: 1,
+                        opacity: 0.3,
+                        fillColor: '#22c55e',
+                        fillOpacity: 0.1
+                    }).addTo(map);
+                } else {
+                    accuracyCircle.setLatLng(newPt);
+                    accuracyCircle.setRadius(accuracy);
+                }
+            }
+
+            let distanceMoved = 0;
             if (todayPath.length > 0) {
                 const lastPt = todayPath[todayPath.length - 1];
-                const dist = calculateDistance(lastPt.lat, lastPt.lng, lat, lng);
-                if (dist > 0.003) {
-                    totalDistance += dist;
-                    todayPath.push({ lat, lng, timestamp: Date.now() });
-                    allTimePoints.push([lat, lng]);
+                distanceMoved = calculateDistance(lastPt.lat, lastPt.lng, lat, lng);
+            }
+
+            const hasMoved = (speed && speed > 0.3) || distanceMoved > 0.0025;
+
+            if (hasMoved || isDemoWalking) {
+                lastMoveTime = now;
+                isMoving = true;
+            }
+
+            if (todayPath.length > 0) {
+                if (distanceMoved > 0.0025) {
+                    totalDistance += distanceMoved;
+                    todayPath.push({ lat, lng, timestamp: now });
+                    allTimePoints.push({ lat, lng, timestamp: now });
                     appendPathPoint(lat, lng);
                     saveTodayData();
                 }
             } else {
-                todayPath.push({ lat, lng, timestamp: Date.now() });
-                allTimePoints.push([lat, lng]);
+                todayPath.push({ lat, lng, timestamp: now });
+                allTimePoints.push({ lat, lng, timestamp: now });
                 appendPathPoint(lat, lng);
                 saveTodayData();
             }
@@ -392,15 +477,6 @@
             const pt = [lat, lng];
             polylineOuter.addLatLng(pt);
             polylineInner.addLatLng(pt);
-
-            const circle = L.circle(pt, {
-                radius: 12,
-                color: '#22c55e',
-                fillColor: '#22c55e',
-                fillOpacity: 0.25,
-                stroke: false
-            });
-            circleGroup.addLayer(circle);
         }
 
         function loadAllStoredData() {
@@ -428,7 +504,12 @@
             persistentHistoryGroup.clearLayers();
             if (allTimePoints.length === 0) return;
 
-            const historyPolyline = L.polyline(allTimePoints, {
+            const latLngs = allTimePoints.map(pt => {
+                if (Array.isArray(pt)) return [pt[0], pt[1]];
+                return [pt.lat, pt.lng];
+            });
+
+            const historyPolyline = L.polyline(latLngs, {
                 color: '#22c55e',
                 weight: settings.lineWidth,
                 opacity: 0.6,
@@ -467,7 +548,6 @@
                 elapsedTime = 0;
                 polylineOuter.setLatLngs([]);
                 polylineInner.setLatLngs([]);
-                circleGroup.clearLayers();
 
                 renderPersistentHistory();
                 saveTodayData();
@@ -477,12 +557,18 @@
         }
 
         function updateStatsDisplay() {
-            document.getElementById('stat-distance').innerText = totalDistance.toFixed(2);
-            document.getElementById('stat-time').innerText = formatTime(elapsedTime);
+            const distEl = document.getElementById('stat-distance');
+            const timeEl = document.getElementById('stat-time');
+            const speedEl = document.getElementById('stat-speed');
+
+            if (distEl) distEl.innerText = totalDistance.toFixed(2);
+            if (timeEl) timeEl.innerText = formatTime(elapsedTime);
             
-            const hours = elapsedTime / 3600;
-            const speed = hours > 0 ? (totalDistance / hours) : 0;
-            document.getElementById('stat-speed').innerText = speed.toFixed(1);
+            if (speedEl) {
+                const hours = elapsedTime / 3600;
+                const speed = hours > 0 ? (totalDistance / hours) : 0;
+                speedEl.innerText = speed.toFixed(1);
+            }
         }
 
         function setMapStyle(styleKey) {
@@ -491,55 +577,260 @@
             if (currentTileLayer) map.removeLayer(currentTileLayer);
             currentTileLayer = L.tileLayer(MAP_TILES[styleKey], { maxZoom: 19, subdomains: 'abcd' }).addTo(map);
             showToast(`已切換地圖風格`, 'fa-solid fa-map');
-            document.getElementById('modal-settings').classList.add('hidden');
+            const modal = document.getElementById('modal-settings');
+            if (modal) modal.classList.add('hidden');
         }
 
         function setupEventListeners() {
-            document.getElementById('btn-recenter').onclick = () => {
-                if (userMarker) {
-                    map.flyTo(userMarker.getLatLng(), 17, { animate: true });
-                } else {
-                    showToast('等待 GPS 訊號中...', 'fa-solid fa-location-crosshairs');
-                }
-            };
+            const btnRecenter = document.getElementById('btn-recenter');
+            if (btnRecenter) {
+                btnRecenter.onclick = () => {
+                    if (userMarker) {
+                        map.panTo(userMarker.getLatLng(), { animate: true, duration: 0.8 });
+                    } else {
+                        showToast('等待 GPS 訊號中...', 'fa-solid fa-location-crosshairs');
+                    }
+                };
+            }
 
-            document.getElementById('btn-settings').onclick = () => {
-                document.getElementById('modal-settings').classList.remove('hidden');
-            };
-            document.getElementById('close-settings-bg').onclick = () => {
-                document.getElementById('modal-settings').classList.add('hidden');
-            };
+            const btnSettings = document.getElementById('btn-settings');
+            if (btnSettings) {
+                btnSettings.onclick = () => {
+                    document.getElementById('modal-settings').classList.remove('hidden');
+                };
+            }
 
-            document.getElementById('btn-history').onclick = () => {
-                renderHistoryList();
-                document.getElementById('modal-history').classList.remove('hidden');
-            };
-            document.getElementById('close-history-bg').onclick = () => {
-                document.getElementById('modal-history').classList.add('hidden');
-            };
+            const closeSettingsBg = document.getElementById('close-settings-bg');
+            if (closeSettingsBg) {
+                closeSettingsBg.onclick = () => {
+                    document.getElementById('modal-settings').classList.add('hidden');
+                };
+            }
+
+            const btnHistory = document.getElementById('btn-history');
+            if (btnHistory) {
+                btnHistory.onclick = () => {
+                    renderHistoryList();
+                    document.getElementById('modal-history').classList.remove('hidden');
+                };
+            }
+
+            const closeHistoryBg = document.getElementById('close-history-bg');
+            if (closeHistoryBg) {
+                closeHistoryBg.onclick = () => {
+                    document.getElementById('modal-history').classList.add('hidden');
+                };
+            }
 
             const inputWidth = document.getElementById('input-linewidth');
-            inputWidth.oninput = (e) => {
-                const val = parseInt(e.target.value);
-                settings.lineWidth = val;
-                document.getElementById('val-linewidth').innerText = val + ' px';
-                polylineOuter.setStyle({ weight: val + 6 });
-                polylineInner.setStyle({ weight: val });
-            };
+            if (inputWidth) {
+                inputWidth.oninput = (e) => {
+                    const val = parseInt(e.target.value);
+                    settings.lineWidth = val;
+                    const valEl = document.getElementById('val-linewidth');
+                    if (valEl) valEl.innerText = val + ' px';
+                    polylineOuter.setStyle({ weight: val + 6 });
+                    polylineInner.setStyle({ weight: val });
+                };
+            }
 
-            document.getElementById('btn-demo').onclick = toggleDemoWalk;
-            document.getElementById('btn-export-gpx').onclick = exportGPX;
+            const btnDemo = document.getElementById('btn-demo');
+            if (btnDemo) {
+                btnDemo.onclick = toggleDemoWalk;
+            }
 
-            document.getElementById('btn-clear-all').onclick = () => {
-                if (confirm('確定要清除所有走過的綠色足跡紀錄嗎？此動作無法復原。')) {
-                    localStorage.clear();
-                    location.reload();
+            const btnExportGpx = document.getElementById('btn-export-gpx');
+            if (btnExportGpx) {
+                btnExportGpx.onclick = exportGPX;
+            }
+
+            const simNextDayBtn = document.getElementById('btn-sim-nextday');
+            if (simNextDayBtn) {
+                simNextDayBtn.onclick = () => {
+                    simulatedDaysOffset++;
+                    
+                    const archiveDate = localStorage.getItem('green_footprint_last_date') || getTodayDateStr();
+                    if (todayPath.length > 0 || totalDistance > 0) {
+                        const archiveEntry = {
+                            date: archiveDate,
+                            distance: totalDistance.toFixed(2),
+                            duration: elapsedTime,
+                            pointsCount: todayPath.length
+                        };
+                        historyData.unshift(archiveEntry);
+                        localStorage.setItem('green_footprint_history', JSON.stringify(historyData));
+                    }
+
+                    todayPath = [];
+                    totalDistance = 0;
+                    elapsedTime = 0;
+                    polylineOuter.setLatLngs([]);
+                    polylineInner.setLatLngs([]);
+
+                    renderPersistentHistory();
+                    saveTodayData();
+
+                    const simDateObj = new Date(getSimulatedNow());
+                    const dateStr = simDateObj.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' });
+                    const dateEl = document.getElementById('date-display');
+                    if (dateEl) dateEl.innerText = `[模擬+${simulatedDaysOffset}天] ${dateStr}`;
+
+                    updateStatsDisplay();
+                    showToast(`已推進至第 +${simulatedDaysOffset} 天！舊有綠色足跡全面留存`, 'fa-solid fa-forward-fast');
+                };
+            }
+
+            const btnClearAll = document.getElementById('btn-clear-all');
+            if (btnClearAll) {
+                btnClearAll.onclick = () => {
+                    if (btnClearAll.dataset.confirming === 'true') {
+                        localStorage.clear();
+                        location.reload();
+                    } else {
+                        btnClearAll.dataset.confirming = 'true';
+                        showToast('再次點擊清除歷史確定重設', 'fa-solid fa-triangle-exclamation');
+                        setTimeout(() => { btnClearAll.dataset.confirming = 'false'; }, 3000);
+                    }
+                };
+            }
+        }
+
+        function toggleDemoWalk() {
+            isDemoWalking = !isDemoWalking;
+            const btnDemo = document.getElementById('btn-demo');
+            if (isDemoWalking) {
+                showToast('已開啟手動拖曳模擬模式', 'fa-solid fa-person-walking');
+                if (btnDemo) {
+                    btnDemo.className = 'w-12 h-12 rounded-2xl bg-amber-500 text-white shadow-xl shadow-amber-500/30 flex flex-col items-center justify-center transition active:scale-95';
                 }
-            };
+                enableUserMarkerDragging();
+            } else {
+                showToast('已關閉模擬移動，恢復 GPS 模式', 'fa-solid fa-location-dot');
+                if (btnDemo) {
+                    btnDemo.className = 'w-12 h-12 rounded-2xl bg-emerald-500 text-white shadow-xl shadow-emerald-500/30 flex flex-col items-center justify-center transition active:scale-95';
+                }
+                disableUserMarkerDragging();
+            }
+        }
+
+        function enableUserMarkerDragging() {
+            if (!userMarker) {
+                const center = map.getCenter();
+                handleNewLocation(center.lat, center.lng, 10, 0);
+            }
+            if (userMarker) {
+                userMarker.dragging.enable();
+                userMarker.off('drag');
+                userMarker.on('drag', (e) => {
+                    const pos = e.target.getLatLng();
+                    handleNewLocation(pos.lat, pos.lng, 5, 2.0);
+                });
+            }
+        }
+
+        function disableUserMarkerDragging() {
+            if (userMarker) {
+                userMarker.dragging.disable();
+            }
+        }
+
+        let clickDetectionCircle = null;
+
+        function onMapClick(e) {
+            const clickedLat = e.latlng.lat;
+            const clickedLng = e.latlng.lng;
+
+            const visits = getVisitsAt(clickedLat, clickedLng, 5);
+
+            if (clickDetectionCircle) {
+                map.removeLayer(clickDetectionCircle);
+            }
+            clickDetectionCircle = L.circle([clickedLat, clickedLng], {
+                radius: 5,
+                color: visits.length > 0 ? '#22c55e' : '#94a3b8',
+                weight: 1.5,
+                dashArray: '5, 5',
+                fillColor: visits.length > 0 ? '#22c55e' : '#cbd5e1',
+                fillOpacity: 0.15
+            }).addTo(map);
+
+            const popupContent = `
+                <div class="p-2 font-sans min-w-[220px] max-w-[260px]">
+                    <div class="flex items-center justify-between text-xs font-bold mb-2 pb-1.5 border-b border-slate-200/80">
+                        <span class="flex items-center space-x-1.5 text-slate-800">
+                            <i class="fa-solid fa-location-dot ${visits.length > 0 ? 'text-emerald-500' : 'text-slate-400'} text-sm"></i>
+                            <span>足跡檢測 (5m)</span>
+                        </span>
+                        <span class="px-2.5 py-0.5 rounded-full font-extrabold text-[11px] ${visits.length > 0 ? 'bg-emerald-500 text-white shadow-xs' : 'bg-slate-100 text-slate-500'}">
+                            ${visits.length > 0 ? `去過 ${visits.length} 次` : '尚未造訪'}
+                        </span>
+                    </div>
+
+                    ${visits.length > 0 ? `
+                        <p class="text-[10px] text-slate-400 font-bold mb-1.5">詳細造訪時間：</p>
+                        <div class="max-h-[140px] overflow-y-auto pr-1 space-y-1 custom-scrollbar text-left">
+                            ${visits.map((ts, idx) => `
+                                <div class="flex items-center justify-between text-[11px] py-1 px-2 rounded-lg bg-slate-50 border border-slate-100">
+                                    <span class="text-emerald-600 font-mono text-[10px] font-bold">第 ${visits.length - idx} 次</span>
+                                    <span class="font-bold text-slate-700 font-mono">${formatDateTime(ts)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : `
+                        <div class="py-4 text-center">
+                            <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2 text-base">
+                                <i class="fa-solid fa-shoe-prints"></i>
+                            </div>
+                            <p class="text-xs text-slate-500 font-bold">尚未踩點過這裡</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">快來這裡探索留下你的綠色足跡吧！</p>
+                        </div>
+                    `}
+                </div>
+            `;
+
+            L.popup({
+                className: 'custom-footprint-popup',
+                closeButton: true,
+                offset: [0, -5]
+            })
+            .setLatLng(e.latlng)
+            .setContent(popupContent)
+            .openOn(map);
+        }
+
+        function getVisitsAt(clickedLat, clickedLng, radiusMeters = 5) {
+            if (!allTimePoints || allTimePoints.length === 0) return [];
+
+            const visits = [];
+            let lastVisitTime = 0;
+            const radiusKm = radiusMeters / 1000;
+
+            for (let i = 0; i < allTimePoints.length; i++) {
+                const pt = allTimePoints[i];
+                const ptLat = pt.lat !== undefined ? pt.lat : (Array.isArray(pt) ? pt[0] : 0);
+                const ptLng = pt.lng !== undefined ? pt.lng : (Array.isArray(pt) ? pt[1] : 0);
+                const ptTime = pt.timestamp !== undefined ? pt.timestamp : (Array.isArray(pt) ? (pt[2] || Date.now()) : Date.now());
+
+                const dist = calculateDistance(clickedLat, clickedLng, ptLat, ptLng);
+                if (dist <= radiusKm) {
+                    const isDifferentDay = lastVisitTime > 0 && 
+                        new Date(ptTime).toDateString() !== new Date(lastVisitTime).toDateString();
+                    
+                    if (lastVisitTime === 0 || isDifferentDay || (ptTime - lastVisitTime > 300000)) {
+                        visits.push(ptTime);
+                        lastVisitTime = ptTime;
+                    } else {
+                        lastVisitTime = ptTime;
+                    }
+                }
+            }
+            return visits.reverse();
         }
 
         function renderHistoryList() {
             const container = document.getElementById('history-list-container');
+            if (!container) return;
+
             if (historyData.length === 0) {
                 container.innerHTML = `<div class="p-6 text-center text-slate-400 text-xs font-medium">目前尚無歷史歸檔紀錄</div>`;
                 return;
@@ -564,30 +855,6 @@
             `).join('');
         }
 
-        function toggleDemoWalk() {
-            if (isDemoWalking) {
-                clearInterval(demoInterval);
-                isDemoWalking = false;
-                showToast('已結束模擬行走', 'fa-solid fa-pause');
-                document.getElementById('btn-demo').classList.remove('bg-amber-500');
-                document.getElementById('btn-demo').classList.add('bg-emerald-500');
-            } else {
-                isDemoWalking = true;
-                showToast('開始模擬行走探索中...', 'fa-solid fa-play');
-                document.getElementById('btn-demo').classList.remove('bg-emerald-500');
-                document.getElementById('btn-demo').classList.add('bg-amber-500');
-
-                let currLat = userMarker ? userMarker.getLatLng().lat : 25.0330;
-                let currLng = userMarker ? userMarker.getLatLng().lng : 121.5654;
-
-                demoInterval = setInterval(() => {
-                    currLat += (Math.random() - 0.45) * 0.0003;
-                    currLng += (Math.random() - 0.45) * 0.0003;
-                    handleNewLocation(currLat, currLng);
-                }, 1500);
-            }
-        }
-
         function setupPWAInstallPrompt() {
             window.addEventListener('beforeinstallprompt', (e) => {
                 e.preventDefault();
@@ -596,20 +863,26 @@
                 if (banner) banner.classList.remove('hidden');
             });
 
-            document.getElementById('btn-pwa-install').onclick = async () => {
-                if (!deferredPrompt) return;
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') {
-                    showToast('已開始安裝 App 至桌面', 'fa-solid fa-download');
-                }
-                deferredPrompt = null;
-                document.getElementById('pwa-install-banner').classList.add('hidden');
-            };
+            const btnInstall = document.getElementById('btn-pwa-install');
+            if (btnInstall) {
+                btnInstall.onclick = async () => {
+                    if (!deferredPrompt) return;
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        showToast('已開始安裝 App 至桌面', 'fa-solid fa-download');
+                    }
+                    deferredPrompt = null;
+                    document.getElementById('pwa-install-banner').classList.add('hidden');
+                };
+            }
 
-            document.getElementById('btn-pwa-dismiss').onclick = () => {
-                document.getElementById('pwa-install-banner').classList.add('hidden');
-            };
+            const btnDismiss = document.getElementById('btn-pwa-dismiss');
+            if (btnDismiss) {
+                btnDismiss.onclick = () => {
+                    document.getElementById('pwa-install-banner').classList.add('hidden');
+                };
+            }
         }
 
         async function requestWakeLock() {
@@ -633,6 +906,16 @@
             return R * c;
         }
 
+        function formatDateTime(ts) {
+            const d = new Date(ts);
+            const yyyy = d.getFullYear();
+            const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+            const dd = d.getDate().toString().padStart(2, '0');
+            const hh = d.getHours().toString().padStart(2, '0');
+            const min = d.getMinutes().toString().padStart(2, '0');
+            return `${yyyy}/${mm}/${dd} ${hh}:${min}`;
+        }
+
         function formatTime(sec) {
             const h = Math.floor(sec / 3600).toString().padStart(2, '0');
             const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
@@ -640,19 +923,29 @@
             return `${h}:${m}:${s}`;
         }
 
+        function getSimulatedNow() {
+            return Date.now() + (simulatedDaysOffset * 86400000);
+        }
+
         function getTodayDateStr() {
-            const d = new Date();
+            const d = new Date(getSimulatedNow());
             return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
         }
 
         function showToast(msg, iconClass = 'fa-solid fa-info-circle') {
             const toast = document.getElementById('toast');
-            document.getElementById('toast-msg').innerText = msg;
-            document.getElementById('toast-icon').innerHTML = `<i class="${iconClass} text-emerald-500"></i>`;
-            toast.classList.remove('opacity-0', '-translate-y-4');
-            setTimeout(() => {
-                toast.classList.add('opacity-0', '-translate-y-4');
-            }, 3000);
+            const toastMsg = document.getElementById('toast-msg');
+            const toastIcon = document.getElementById('toast-icon');
+
+            if (toastMsg) toastMsg.innerText = msg;
+            if (toastIcon) toastIcon.innerHTML = `<i class="${iconClass} text-emerald-500"></i>`;
+            
+            if (toast) {
+                toast.classList.remove('opacity-0', '-translate-y-4');
+                setTimeout(() => {
+                    toast.classList.add('opacity-0', '-translate-y-4');
+                }, 2500);
+            }
         }
 
         function exportGPX() {
@@ -662,7 +955,9 @@
             }
             let gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="GreenFootprintApp">\n<trk><name>My Green Footprints</name><trkseg>\n`;
             allTimePoints.forEach(pt => {
-                gpx += `<trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>\n`;
+                const lat = Array.isArray(pt) ? pt[0] : pt.lat;
+                const lon = Array.isArray(pt) ? pt[1] : pt.lng;
+                gpx += `<trkpt lat="${lat}" lon="${lon}"></trkpt>\n`;
             });
             gpx += `</trkseg></trk>\n</gpx>`;
 
