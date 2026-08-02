@@ -1,0 +1,56 @@
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function formatTime(sec) {
+            const h = Math.floor(sec / 3600).toString().padStart(2, '0');
+            const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+            const s = (sec % 60).toString().padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+
+        function getTodayDateStr() {
+            const d = new Date();
+            return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+        }
+
+        function showToast(msg, iconClass = 'fa-solid fa-info-circle') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            document.getElementById('toast-icon').innerHTML = `<i class="${iconClass} text-emerald-500"></i>`;
+            toast.classList.remove('opacity-0', '-translate-y-4');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-4');
+            }, 3000);
+        }
+
+        function exportGPX() {
+            if (allTimePoints.length === 0) {
+                showToast('目前沒有足跡點位可供匯出', 'fa-solid fa-triangle-exclamation');
+                return;
+            }
+            let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GreenFootprintApp">
+<trk><name>My Green Footprints</name><trkseg>
+`;
+            allTimePoints.forEach(pt => {
+                gpx += `<trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>
+`;
+            });
+            gpx += `</trkseg></trk>
+</gpx>`;
+
+            const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `green-footprint-${getTodayDateStr()}.gpx`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('已成功下載 GPX 軌跡檔案', 'fa-solid fa-file-arrow-down');
+        }
+    </script>
+</body>
+</html>
