@@ -44,7 +44,7 @@
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.12);
         }
 
-        /* Google Maps 風格的定位圓點點擊脈衝效果 */
+        /* Google Maps 風格定位點 */
         .gmap-user-container {
             position: relative;
             width: 24px;
@@ -64,7 +64,6 @@
             z-index: 2;
         }
 
-        /* 自訂地圖控制項 */
         .leaflet-control-zoom {
             border: none !important;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
@@ -88,7 +87,6 @@
             background: rgba(255, 255, 255, 0.92);
         }
 
-        /* 滾輪捲動與彈出視窗樣式 */
         .custom-scrollbar::-webkit-scrollbar {
             width: 4px;
         }
@@ -103,6 +101,7 @@
     <!-- 地圖容器 -->
     <div id="map"></div>
 
+    <!-- 頂部資訊列 -->
     <div class="fixed top-3 left-3 right-3 z-20 flex flex-col space-y-2 pointer-events-none">
         <div class="glass-panel p-3.5 rounded-2xl flex items-center justify-between pointer-events-auto shadow-lg">
             <div class="flex items-center space-x-3">
@@ -147,6 +146,7 @@
         </div>
     </div>
 
+    <!-- 右下角快速選單 -->
     <div class="fixed bottom-6 right-4 z-20 flex flex-col space-y-3 pointer-events-auto">
         <button id="btn-history" class="w-12 h-12 rounded-2xl bg-white text-emerald-600 shadow-xl border border-emerald-100 flex flex-col items-center justify-center transition active:scale-95">
             <i class="fa-solid fa-calendar-day text-base"></i>
@@ -169,15 +169,61 @@
     <!-- 設定 Modal Drawer -->
     <div id="modal-settings" class="fixed inset-0 z-40 hidden">
         <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" id="close-settings-bg"></div>
-        <div class="absolute bottom-0 left-0 right-0 glass-panel rounded-t-3xl p-5 border-t border-white/50 max-h-[85vh] overflow-y-auto transform transition-transform duration-300">
+        <div class="absolute bottom-0 left-0 right-0 glass-panel rounded-t-3xl p-5 border-t border-white/50 max-h-[88vh] overflow-y-auto transform transition-transform duration-300">
             <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-4"></div>
             <h2 class="text-base font-black text-slate-800 mb-4 flex items-center space-x-2">
-                <i class="fa-solid fa-gear text-emerald-500"></i>
-                <span>地圖與軌跡設定</span>
+                <i class="fa-solid fa-sliders text-emerald-500"></i>
+                <span>定位與地圖參數設定</span>
             </h2>
 
+            <!-- GPS 敏感度建議參數選單 -->
+            <div class="mb-5 bg-white/60 p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs font-extrabold text-slate-700 flex items-center space-x-1">
+                        <i class="fa-solid fa-gauge-high text-emerald-600"></i>
+                        <span>GPS 記錄敏感度 (動態過濾)</span>
+                    </label>
+                    <span id="badge-sensitivity" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700">中 (5m - 推薦)</span>
+                </div>
+                
+                <div class="grid grid-cols-3 gap-2 mb-2">
+                    <button type="button" onclick="setSensitivity('high')" id="sens-btn-high" class="p-2 rounded-xl border text-center transition">
+                        <div class="text-xs font-bold">高敏感</div>
+                        <div class="text-[9px] opacity-75">2 公尺</div>
+                    </button>
+                    <button type="button" onclick="setSensitivity('medium')" id="sens-btn-medium" class="p-2 rounded-xl border text-center transition">
+                        <div class="text-xs font-bold">中等 (推薦)</div>
+                        <div class="text-[9px] opacity-75">5 公尺</div>
+                    </button>
+                    <button type="button" onclick="setSensitivity('low')" id="sens-btn-low" class="p-2 rounded-xl border text-center transition">
+                        <div class="text-xs font-bold">低敏感</div>
+                        <div class="text-[9px] opacity-75">10 公尺</div>
+                    </button>
+                </div>
+                <p id="sensitivity-desc" class="text-[10px] text-slate-500 leading-relaxed">
+                    💡 <b>建議參數：</b>標準日常散步選「中等（5米）」，可完美防範靜止或室內時的 GPS 漂移虛爆里程。
+                </p>
+            </div>
+
+            <!-- 足跡點擊檢測半徑 -->
+            <div class="mb-5 bg-white/60 p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs font-extrabold text-slate-700 flex items-center space-x-1">
+                        <i class="fa-solid fa-bullseye text-emerald-600"></i>
+                        <span>踩點檢測感知半徑</span>
+                    </label>
+                    <span id="badge-radius" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600">10 公尺</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <button type="button" onclick="setDetectionRadius(5)" id="rad-btn-5" class="p-2 rounded-xl border text-center text-xs font-bold">5 米 (精確)</button>
+                    <button type="button" onclick="setDetectionRadius(10)" id="rad-btn-10" class="p-2 rounded-xl border text-center text-xs font-bold">10 米 (推薦)</button>
+                    <button type="button" onclick="setDetectionRadius(20)" id="rad-btn-20" class="p-2 rounded-xl border text-center text-xs font-bold">20 米 (寬鬆)</button>
+                </div>
+            </div>
+
+            <!-- 地圖樣式選單 -->
             <div class="mb-5">
-                <label class="block text-xs font-bold text-slate-500 mb-2">地圖風格 (建議 Google 淺色)</label>
+                <label class="block text-xs font-bold text-slate-500 mb-2">地圖風格</label>
                 <div class="grid grid-cols-2 gap-2.5">
                     <button onclick="setMapStyle('googleLight')" class="p-2.5 rounded-xl border border-slate-200 flex items-center space-x-2 text-xs font-bold bg-white shadow-sm hover:border-emerald-500 active:scale-98">
                         <span class="w-4 h-4 rounded-full bg-amber-200 border border-amber-400"></span>
@@ -198,6 +244,7 @@
                 </div>
             </div>
 
+            <!-- 足跡粗細 -->
             <div class="mb-5">
                 <div class="flex justify-between items-center mb-1">
                     <label class="text-xs font-bold text-slate-500">足跡線條粗細</label>
@@ -206,6 +253,7 @@
                 <input type="range" id="input-linewidth" min="8" max="36" value="18" class="w-full accent-emerald-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
             </div>
 
+            <!-- 模擬跨日測試 -->
             <div class="mb-5 pt-3 border-t border-slate-200/80">
                 <button id="btn-sim-nextday" class="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2">
                     <i class="fa-solid fa-moon text-emerald-600"></i>
@@ -225,6 +273,7 @@
         </div>
     </div>
 
+    <!-- 歷史紀錄 Modal -->
     <div id="modal-history" class="fixed inset-0 z-40 hidden">
         <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" id="close-history-bg"></div>
         <div class="absolute bottom-0 left-0 right-0 glass-panel rounded-t-3xl p-5 border-t border-white/50 max-h-[75vh] overflow-y-auto">
@@ -234,7 +283,6 @@
                 <span>跨日自動歸檔紀錄</span>
             </h2>
             <p class="text-xs text-slate-500 mb-4">每日午夜自動歸檔數據，走過的綠色足跡永久留存！</p>
-            
             <div id="history-list-container" class="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1"></div>
         </div>
     </div>
@@ -287,6 +335,16 @@
         let lastMoveTime = 0;
         let simulatedDaysOffset = 0;
 
+        // 全局敏感度與設定參數
+        let settings = {
+            style: 'googleLight',
+            lineWidth: 18,
+            sensitivity: 'medium',   // 'high' (2m), 'medium' (5m), 'low' (10m)
+            minDistance: 0.005,      // km (預設 5 米過濾防漂移)
+            maxAccuracyFilter: 35,   // 忽略精確度大於 35 米的無效訊號
+            detectionRadius: 10      // 點擊檢測預設 10 米
+        };
+
         const MAP_TILES = {
             googleLight: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', 
             street: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -294,11 +352,6 @@
             satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
         };
         let currentTileLayer = null;
-
-        let settings = {
-            style: 'googleLight',
-            lineWidth: 18
-        };
 
         window.onload = function() {
             initMap();
@@ -308,12 +361,13 @@
             setupEventListeners();
             requestWakeLock();
             setupPWAInstallPrompt();
+            updateSensitivityUI();
 
-            // 每秒觸發動態計時與運動狀態檢測
+            // 每秒觸發計時器與動態檢測
             timerInterval = setInterval(() => {
                 const now = getSimulatedNow();
                 
-                if (isDemoWalking || (lastMoveTime > 0 && (now - lastMoveTime) < 4000)) {
+                if (isDemoWalking || (lastMoveTime > 0 && (now - lastMoveTime) < 5000)) {
                     isMoving = true;
                     elapsedTime++;
                 } else {
@@ -409,6 +463,7 @@
             const newPt = [lat, lng];
             const now = getSimulatedNow();
             
+            // 更新定位點圖示
             if (!userMarker) {
                 const gmapIcon = L.divIcon({
                     className: 'custom-gmap-marker',
@@ -426,6 +481,7 @@
                 userMarker.setLatLng(newPt);
             }
 
+            // 更新精確度圓圈
             if (accuracy) {
                 if (!accuracyCircle) {
                     accuracyCircle = L.circle(newPt, {
@@ -442,13 +498,19 @@
                 }
             }
 
+            // 雜訊防飄移防護：若訊號太差 (>35米誤差) 則忽略不記錄為足跡，防止產生巨大突波線條
+            if (accuracy && accuracy > settings.maxAccuracyFilter && !isDemoWalking) {
+                return;
+            }
+
             let distanceMoved = 0;
             if (todayPath.length > 0) {
                 const lastPt = todayPath[todayPath.length - 1];
                 distanceMoved = calculateDistance(lastPt.lat, lastPt.lng, lat, lng);
             }
 
-            const hasMoved = (speed && speed > 0.3) || distanceMoved > 0.0025;
+            // 依據設定的 minDistance (2m/5m/10m) 判斷是否為有效位移
+            const hasMoved = (speed && speed > 0.3) || (distanceMoved >= settings.minDistance);
 
             if (hasMoved || isDemoWalking) {
                 lastMoveTime = now;
@@ -456,7 +518,8 @@
             }
 
             if (todayPath.length > 0) {
-                if (distanceMoved > 0.0025) {
+                // 只有移動距離大於敏感度閥值才記錄，完全防止站立時的 GPS 漂移
+                if (distanceMoved >= settings.minDistance) {
                     totalDistance += distanceMoved;
                     todayPath.push({ lat, lng, timestamp: now });
                     allTimePoints.push({ lat, lng, timestamp: now });
@@ -480,6 +543,11 @@
         }
 
         function loadAllStoredData() {
+            const savedSettings = localStorage.getItem('green_footprint_settings');
+            if (savedSettings) {
+                settings = { ...settings, ...JSON.parse(savedSettings) };
+            }
+
             const savedHistory = localStorage.getItem('green_footprint_history');
             if (savedHistory) historyData = JSON.parse(savedHistory);
 
@@ -498,6 +566,10 @@
 
                 todayPath.forEach(p => appendPathPoint(p.lat, p.lng));
             }
+        }
+
+        function saveSettings() {
+            localStorage.setItem('green_footprint_settings', JSON.stringify(settings));
         }
 
         function renderPersistentHistory() {
@@ -574,11 +646,77 @@
         function setMapStyle(styleKey) {
             if (!MAP_TILES[styleKey]) return;
             settings.style = styleKey;
+            saveSettings();
             if (currentTileLayer) map.removeLayer(currentTileLayer);
             currentTileLayer = L.tileLayer(MAP_TILES[styleKey], { maxZoom: 19, subdomains: 'abcd' }).addTo(map);
             showToast(`已切換地圖風格`, 'fa-solid fa-map');
             const modal = document.getElementById('modal-settings');
             if (modal) modal.classList.add('hidden');
+        }
+
+        function setSensitivity(level) {
+            settings.sensitivity = level;
+            if (level === 'high') {
+                settings.minDistance = 0.002; // 2 米
+            } else if (level === 'medium') {
+                settings.minDistance = 0.005; // 5 米
+            } else if (level === 'low') {
+                settings.minDistance = 0.010; // 10 米
+            }
+            saveSettings();
+            updateSensitivityUI();
+            showToast(`定位敏感度已設為：${level === 'high' ? '高 (2m)' : level === 'medium' ? '中 (5m)' : '低 (10m)'}`, 'fa-solid fa-sliders');
+        }
+
+        function setDetectionRadius(meters) {
+            settings.detectionRadius = meters;
+            saveSettings();
+            updateSensitivityUI();
+            showToast(`點擊踩點感知半徑已設為：${meters} 公尺`, 'fa-solid fa-bullseye');
+        }
+
+        function updateSensitivityUI() {
+            // 更新敏感度按鈕樣式
+            const btnHigh = document.getElementById('sens-btn-high');
+            const btnMed = document.getElementById('sens-btn-medium');
+            const btnLow = document.getElementById('sens-btn-low');
+            const badgeSens = document.getElementById('badge-sensitivity');
+            const descSens = document.getElementById('sensitivity-desc');
+
+            const activeClass = 'bg-emerald-500 text-white border-emerald-500 shadow-sm font-bold';
+            const inactiveClass = 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100';
+
+            if (btnHigh && btnMed && btnLow) {
+                btnHigh.className = `p-2 rounded-xl border text-center transition ${settings.sensitivity === 'high' ? activeClass : inactiveClass}`;
+                btnMed.className = `p-2 rounded-xl border text-center transition ${settings.sensitivity === 'medium' ? activeClass : inactiveClass}`;
+                btnLow.className = `p-2 rounded-xl border text-center transition ${settings.sensitivity === 'low' ? activeClass : inactiveClass}`;
+            }
+
+            if (badgeSens) {
+                if (settings.sensitivity === 'high') {
+                    badgeSens.innerText = '高 (2m - 適合散步)';
+                    badgeSens.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800';
+                    if (descSens) descSens.innerHTML = '⚡ <b>高敏感度：</b>2 公尺即觸發記錄。適合細緻步道或 slow jogging，但室內可能有微幅 GPS 漂移。';
+                } else if (settings.sensitivity === 'medium') {
+                    badgeSens.innerText = '中 (5m - 推薦標準)';
+                    badgeSens.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700';
+                    if (descSens) descSens.innerHTML = '💡 <b>最佳建議參數：</b>5 公尺觸發。有效防止室內或停紅綠燈時的 GPS 漂移，記錄極為平滑。';
+                } else {
+                    badgeSens.innerText = '低 (10m - 省電車載)';
+                    badgeSens.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-800';
+                    if (descSens) descSens.innerHTML = '🔋 <b>低敏感度：</b>10 公尺才記錄點位。適合自行車、騎車移動或希望減少軌跡點數的情境。';
+                }
+            }
+
+            // 更新感知半徑按鈕
+            [5, 10, 20].forEach(r => {
+                const btn = document.getElementById(`rad-btn-${r}`);
+                if (btn) {
+                    btn.className = `p-2 rounded-xl border text-center text-xs font-bold transition ${settings.detectionRadius === r ? activeClass : inactiveClass}`;
+                }
+            });
+            const badgeRad = document.getElementById('badge-radius');
+            if (badgeRad) badgeRad.innerText = `${settings.detectionRadius} 公尺`;
         }
 
         function setupEventListeners() {
@@ -596,6 +734,7 @@
             const btnSettings = document.getElementById('btn-settings');
             if (btnSettings) {
                 btnSettings.onclick = () => {
+                    updateSensitivityUI();
                     document.getElementById('modal-settings').classList.remove('hidden');
                 };
             }
@@ -624,10 +763,14 @@
 
             const inputWidth = document.getElementById('input-linewidth');
             if (inputWidth) {
+                inputWidth.value = settings.lineWidth;
+                const valEl = document.getElementById('val-linewidth');
+                if (valEl) valEl.innerText = settings.lineWidth + ' px';
+
                 inputWidth.oninput = (e) => {
                     const val = parseInt(e.target.value);
                     settings.lineWidth = val;
-                    const valEl = document.getElementById('val-linewidth');
+                    saveSettings();
                     if (valEl) valEl.innerText = val + ' px';
                     polylineOuter.setStyle({ weight: val + 6 });
                     polylineInner.setStyle({ weight: val });
@@ -739,14 +882,15 @@
         function onMapClick(e) {
             const clickedLat = e.latlng.lat;
             const clickedLng = e.latlng.lng;
+            const radiusMeters = settings.detectionRadius || 10;
 
-            const visits = getVisitsAt(clickedLat, clickedLng, 5);
+            const visits = getVisitsAt(clickedLat, clickedLng, radiusMeters);
 
             if (clickDetectionCircle) {
                 map.removeLayer(clickDetectionCircle);
             }
             clickDetectionCircle = L.circle([clickedLat, clickedLng], {
-                radius: 5,
+                radius: radiusMeters,
                 color: visits.length > 0 ? '#22c55e' : '#94a3b8',
                 weight: 1.5,
                 dashArray: '5, 5',
@@ -759,7 +903,7 @@
                     <div class="flex items-center justify-between text-xs font-bold mb-2 pb-1.5 border-b border-slate-200/80">
                         <span class="flex items-center space-x-1.5 text-slate-800">
                             <i class="fa-solid fa-location-dot ${visits.length > 0 ? 'text-emerald-500' : 'text-slate-400'} text-sm"></i>
-                            <span>足跡檢測 (5m)</span>
+                            <span>足跡檢測 (${radiusMeters}m)</span>
                         </span>
                         <span class="px-2.5 py-0.5 rounded-full font-extrabold text-[11px] ${visits.length > 0 ? 'bg-emerald-500 text-white shadow-xs' : 'bg-slate-100 text-slate-500'}">
                             ${visits.length > 0 ? `去過 ${visits.length} 次` : '尚未造訪'}
@@ -798,7 +942,7 @@
             .openOn(map);
         }
 
-        function getVisitsAt(clickedLat, clickedLng, radiusMeters = 5) {
+        function getVisitsAt(clickedLat, clickedLng, radiusMeters = 10) {
             if (!allTimePoints || allTimePoints.length === 0) return [];
 
             const visits = [];
