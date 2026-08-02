@@ -210,15 +210,18 @@
                 <div class="flex items-center justify-between mb-2">
                     <label class="text-xs font-extrabold text-slate-700 flex items-center space-x-1">
                         <i class="fa-solid fa-bullseye text-emerald-600"></i>
-                        <span>踩點檢測感知半徑</span>
+                        <span>商圈 Session 造訪檢測半徑</span>
                     </label>
-                    <span id="badge-radius" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600">10 公尺</span>
+                    <span id="badge-radius" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600">50 公尺</span>
                 </div>
-                <div class="grid grid-cols-3 gap-2">
-                    <button type="button" onclick="setDetectionRadius(5)" id="rad-btn-5" class="p-2 rounded-xl border text-center text-xs font-bold">5 米 (精確)</button>
-                    <button type="button" onclick="setDetectionRadius(10)" id="rad-btn-10" class="p-2 rounded-xl border text-center text-xs font-bold">10 米 (推薦)</button>
-                    <button type="button" onclick="setDetectionRadius(20)" id="rad-btn-20" class="p-2 rounded-xl border text-center text-xs font-bold">20 米 (寬鬆)</button>
+                <div class="grid grid-cols-3 gap-2 mb-2">
+                    <button type="button" onclick="setDetectionRadius(30)" id="rad-btn-30" class="p-2 rounded-xl border text-center text-xs font-bold">30 米 (街區)</button>
+                    <button type="button" onclick="setDetectionRadius(50)" id="rad-btn-50" class="p-2 rounded-xl border text-center text-xs font-bold">50 米 (推薦)</button>
+                    <button type="button" onclick="setDetectionRadius(80)" id="rad-btn-80" class="p-2 rounded-xl border text-center text-xs font-bold">80 米 (大型園區)</button>
                 </div>
+                <p class="text-[10px] text-slate-500 leading-relaxed">
+                    🧠 <b>時空 Session 機制：</b>停留 $>3$ 分鐘採計 1 次造訪；逛街 1 小時內不重複算；離場 $>15$ 分鐘後重返才算第 2 次。
+                </p>
             </div>
 
             <!-- 地圖樣式選單 -->
@@ -342,7 +345,7 @@
             sensitivity: 'medium',   // 'high' (2m), 'medium' (5m), 'low' (10m)
             minDistance: 0.005,      // km (預設 5 米過濾防漂移)
             maxAccuracyFilter: 35,   // 忽略精確度大於 35 米的無效訊號
-            detectionRadius: 10      // 點擊檢測預設 10 米
+            detectionRadius: 50      // 點擊檢測預設 50 米 (時空 Session 聚類)
         };
 
         const MAP_TILES = {
@@ -709,7 +712,7 @@
             }
 
             // 更新感知半徑按鈕
-            [5, 10, 20].forEach(r => {
+            [30, 50, 80].forEach(r => {
                 const btn = document.getElementById(`rad-btn-${r}`);
                 if (btn) {
                     btn.className = `p-2 rounded-xl border text-center text-xs font-bold transition ${settings.detectionRadius === r ? activeClass : inactiveClass}`;
@@ -882,7 +885,7 @@
         function onMapClick(e) {
             const clickedLat = e.latlng.lat;
             const clickedLng = e.latlng.lng;
-            const radiusMeters = settings.detectionRadius || 10;
+            const radiusMeters = settings.detectionRadius || 50;
 
             const visits = getVisitsAt(clickedLat, clickedLng, radiusMeters);
 
@@ -899,34 +902,43 @@
             }).addTo(map);
 
             const popupContent = `
-                <div class="p-2 font-sans min-w-[220px] max-w-[260px]">
+                <div class="p-2 font-sans min-w-[240px] max-w-[280px]">
                     <div class="flex items-center justify-between text-xs font-bold mb-2 pb-1.5 border-b border-slate-200/80">
                         <span class="flex items-center space-x-1.5 text-slate-800">
-                            <i class="fa-solid fa-location-dot ${visits.length > 0 ? 'text-emerald-500' : 'text-slate-400'} text-sm"></i>
-                            <span>足跡檢測 (${radiusMeters}m)</span>
+                            <i class="fa-solid fa-store ${visits.length > 0 ? 'text-emerald-500' : 'text-slate-400'} text-sm"></i>
+                            <span>足跡 Session (${radiusMeters}m)</span>
                         </span>
                         <span class="px-2.5 py-0.5 rounded-full font-extrabold text-[11px] ${visits.length > 0 ? 'bg-emerald-500 text-white shadow-xs' : 'bg-slate-100 text-slate-500'}">
-                            ${visits.length > 0 ? `去過 ${visits.length} 次` : '尚未造訪'}
+                            ${visits.length > 0 ? `累積造訪 ${visits.length} 次` : '尚未造訪'}
                         </span>
                     </div>
 
                     ${visits.length > 0 ? `
-                        <p class="text-[10px] text-slate-400 font-bold mb-1.5">詳細造訪時間：</p>
-                        <div class="max-h-[140px] overflow-y-auto pr-1 space-y-1 custom-scrollbar text-left">
-                            ${visits.map((ts, idx) => `
-                                <div class="flex items-center justify-between text-[11px] py-1 px-2 rounded-lg bg-slate-50 border border-slate-100">
-                                    <span class="text-emerald-600 font-mono text-[10px] font-bold">第 ${visits.length - idx} 次</span>
-                                    <span class="font-bold text-slate-700 font-mono">${formatDateTime(ts)}</span>
-                                </div>
-                            `).join('')}
+                        <p class="text-[10px] text-slate-400 font-bold mb-1.5">有效造訪 Session 紀錄：</p>
+                        <div class="max-h-[150px] overflow-y-auto pr-1 space-y-1.5 custom-scrollbar text-left">
+                            ${visits.map((sess, idx) => {
+                                const durationMin = Math.max(1, Math.round((sess.endTime - sess.startTime) / 60000));
+                                return `
+                                    <div class="p-1.5 rounded-xl bg-slate-50 border border-slate-100">
+                                        <div class="flex items-center justify-between text-[11px] font-bold mb-0.5">
+                                            <span class="text-emerald-600 font-mono text-[10px]">第 ${visits.length - idx} 次造訪</span>
+                                            <span class="text-slate-500 text-[10px]">停留約 ${durationMin} 分鐘</span>
+                                        </div>
+                                        <div class="text-[10px] text-slate-700 font-mono flex items-center space-x-1">
+                                            <i class="fa-regular fa-clock text-[9px] text-slate-400"></i>
+                                            <span>${formatDateTime(sess.startTime)}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
                         </div>
                     ` : `
                         <div class="py-4 text-center">
                             <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2 text-base">
                                 <i class="fa-solid fa-shoe-prints"></i>
                             </div>
-                            <p class="text-xs text-slate-500 font-bold">尚未踩點過這裡</p>
-                            <p class="text-[10px] text-slate-400 mt-0.5">快來這裡探索留下你的綠色足跡吧！</p>
+                            <p class="text-xs text-slate-500 font-bold">尚未停留過此區域</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">進入區域停留 > 3 分鐘即可自動記錄！</p>
                         </div>
                     `}
                 </div>
@@ -942,13 +954,15 @@
             .openOn(map);
         }
 
-        function getVisitsAt(clickedLat, clickedLng, radiusMeters = 10) {
+        function getVisitsAt(clickedLat, clickedLng, radiusMeters = 50) {
             if (!allTimePoints || allTimePoints.length === 0) return [];
 
-            const visits = [];
-            let lastVisitTime = 0;
             const radiusKm = radiusMeters / 1000;
+            const MIN_DWELL_MS = 3 * 60 * 1000;       // 3 分鐘有效停留門檻
+            const EXIT_TIMEOUT_MS = 15 * 60 * 1000;   // 15 分鐘離場過期門檻
 
+            // 1. 篩選在半徑內的所有軌跡點
+            const pointsInRadius = [];
             for (let i = 0; i < allTimePoints.length; i++) {
                 const pt = allTimePoints[i];
                 const ptLat = pt.lat !== undefined ? pt.lat : (Array.isArray(pt) ? pt[0] : 0);
@@ -957,18 +971,50 @@
 
                 const dist = calculateDistance(clickedLat, clickedLng, ptLat, ptLng);
                 if (dist <= radiusKm) {
-                    const isDifferentDay = lastVisitTime > 0 && 
-                        new Date(ptTime).toDateString() !== new Date(lastVisitTime).toDateString();
-                    
-                    if (lastVisitTime === 0 || isDifferentDay || (ptTime - lastVisitTime > 300000)) {
-                        visits.push(ptTime);
-                        lastVisitTime = ptTime;
-                    } else {
-                        lastVisitTime = ptTime;
-                    }
+                    pointsInRadius.push({ lat: ptLat, lng: ptLng, timestamp: ptTime });
                 }
             }
-            return visits.reverse();
+
+            if (pointsInRadius.length === 0) return [];
+
+            // 按時間從小到大排序
+            pointsInRadius.sort((a, b) => a.timestamp - b.timestamp);
+
+            // 2. 時空聚類切分 Session
+            const sessions = [];
+            let currentSession = {
+                startTime: pointsInRadius[0].timestamp,
+                endTime: pointsInRadius[0].timestamp,
+                count: 1
+            };
+
+            for (let i = 1; i < pointsInRadius.length; i++) {
+                const pt = pointsInRadius[i];
+                const timeDiff = pt.timestamp - currentSession.endTime;
+
+                if (timeDiff <= EXIT_TIMEOUT_MS) {
+                    // 未超過 15 分鐘離場門檻，算在同一次 Session (逛街 1 小時不會被拆分)
+                    currentSession.endTime = pt.timestamp;
+                    currentSession.count++;
+                } else {
+                    // 超過 15 分鐘未出現，前一個 Session 結算
+                    if ((currentSession.endTime - currentSession.startTime >= MIN_DWELL_MS) || currentSession.count >= 3) {
+                        sessions.push(currentSession);
+                    }
+                    currentSession = {
+                        startTime: pt.timestamp,
+                        endTime: pt.timestamp,
+                        count: 1
+                    };
+                }
+            }
+
+            // 處理最後一個 Session
+            if ((currentSession.endTime - currentSession.startTime >= MIN_DWELL_MS) || currentSession.count >= 3) {
+                sessions.push(currentSession);
+            }
+
+            return sessions.reverse(); // 最新 Session 排最上方
         }
 
         function renderHistoryList() {
