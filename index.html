@@ -1,3 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>綠色足跡地圖 - 足跡紀錄器</title>
+    
+    <!-- PWA 與手機原生 APP 支援 Meta 標籤 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="綠色足跡">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#22c55e">
+    <link rel="apple-touch-icon" href="https://placehold.co/192x192/22c55e/ffffff?text=%E8%B6%B3%E8%B7%A1">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 圖示庫 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet 地圖套件 CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        #map {
+            height: 100vh;
+            width: 100vw;
+            z-index: 0;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.12);
+        }
+        .pulse-dot {
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            animation: pulse-green 1.8s infinite;
+        }
+        @keyframes pulse-green {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+            }
+        }
+        .leaflet-control-zoom {
+            border: none !important;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+        }
+        .leaflet-control-zoom a {
+            border-radius: 12px !important;
+            color: #334155 !important;
+            background: rgba(255,255,255,0.9) !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <!-- 地圖容器 -->
+    <div id="map"></div>
+
+    <!-- 頂部資訊與儀表板 -->
+    <div class="fixed top-3 left-3 right-3 z-20 flex flex-col space-y-2 pointer-events-none">
+        <div class="glass-panel p-3.5 rounded-2xl flex items-center justify-between pointer-events-auto shadow-lg">
+            <div class="flex items-center space-x-3">
+                <div class="relative flex items-center justify-center">
+                    <span class="w-3.5 h-3.5 bg-emerald-500 rounded-full pulse-dot block"></span>
+                </div>
+                <div>
+                    <h1 class="font-black text-sm text-slate-800 tracking-wide flex items-center space-x-1.5">
+                        <span>綠色足跡</span>
+                        <span id="gps-status-badge" class="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">自動紀錄中</span>
+                    </h1>
+                    <p id="date-display" class="text-[11px] text-slate-500 font-medium">載入時間中...</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-2">
+                <button id="btn-recenter" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition shadow-sm active:scale-95">
+                    <i class="fa-solid fa-crosshairs text-sm"></i>
+                </button>
+                <button id="btn-settings" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition shadow-sm active:scale-95">
+                    <i class="fa-solid fa-sliders text-sm"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 今日統計數據欄 -->
+        <div class="glass-panel px-4 py-2.5 rounded-2xl flex items-center justify-around pointer-events-auto text-center shadow-md">
+            <div>
+                <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">今日里程</p>
+                <p class="text-base font-black text-emerald-600"><span id="stat-distance">0.00</span> <span class="text-xs font-normal">km</span></p>
+            </div>
+            <div class="w-[1px] h-6 bg-slate-200"></div>
+            <div>
+                <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">經過時間</p>
+                <p class="text-base font-black text-slate-700" id="stat-time">00:00:00</p>
+            </div>
+            <div class="w-[1px] h-6 bg-slate-200"></div>
+            <div>
+                <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">平均時速</p>
+                <p class="text-base font-black text-slate-700"><span id="stat-speed">0.0</span> <span class="text-xs font-normal">km/h</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右下角歷史與功能快捷鍵 -->
+    <div class="fixed bottom-6 right-4 z-20 flex flex-col space-y-3 pointer-events-auto">
+        <button id="btn-history" class="w-12 h-12 rounded-2xl bg-white text-emerald-600 shadow-xl border border-emerald-100 flex flex-col items-center justify-center transition active:scale-95">
+            <i class="fa-solid fa-calendar-day text-base"></i>
+            <span class="text-[9px] font-bold mt-0.5">歷史</span>
+        </button>
+        <button id="btn-demo" class="w-12 h-12 rounded-2xl bg-emerald-500 text-white shadow-xl shadow-emerald-500/30 flex flex-col items-center justify-center transition active:scale-95">
+            <i class="fa-solid fa-person-walking text-base"></i>
+            <span class="text-[9px] font-bold mt-0.5">模擬</span>
+        </button>
+    </div>
+
+    <!-- PWA 安裝提醒 Banner -->
+    <div id="pwa-install-banner" class="fixed bottom-6 left-4 right-20 z-30 hidden">
+        <div class="glass-panel p-3.5 rounded-2xl flex items-center justify-between border border-emerald-500/40 bg-emerald-950/80 text-white shadow-2xl backdrop-blur-md">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white text-sm">
+                    <i class="fa-solid fa-mobile-screen-button"></i>
+                </div>
+                <div>
+                    <p class="font-bold text-xs text-emerald-300">安裝 App 到手機</p>
+                    <p class="text-[10px] text-slate-200">享全螢幕與即時同步</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-1">
+                <button id="btn-pwa-dismiss" class="text-xs text-slate-400 px-1.5 py-1">忽略</button>
+                <button id="btn-pwa-install" class="bg-emerald-500 text-white font-bold text-xs px-2.5 py-1 rounded-lg transition shadow">
+                    安裝
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 通知條 -->
+    <div id="toast" class="fixed top-28 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 opacity-0 transform -translate-y-4">
+        <div class="glass-panel px-4 py-2 rounded-full text-xs font-bold text-slate-800 flex items-center space-x-2 shadow-xl border border-emerald-500/30 bg-white/95">
+            <span id="toast-icon"><i class="fa-solid fa-circle-check text-emerald-500"></i></span>
+            <span id="toast-msg">已自動記錄位置</span>
+        </div>
+    </div>
+
+    <!-- 設定 Modal Drawer -->
+    <div id="modal-settings" class="fixed inset-0 z-40 hidden">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" id="close-settings-bg"></div>
+        <div class="absolute bottom-0 left-0 right-0 glass-panel rounded-t-3xl p-5 border-t border-white/50 max-h-[80vh] overflow-y-auto transform transition-transform duration-300">
+            <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-4"></div>
+            <h2 class="text-base font-black text-slate-800 mb-4 flex items-center space-x-2">
+                <i class="fa-solid fa-gear text-emerald-500"></i>
+                <span>地圖與軌跡設定</span>
+            </h2>
+
+            <!-- 地圖風格選擇 -->
+            <div class="mb-5">
+                <label class="block text-xs font-bold text-slate-500 mb-2">地圖風格 (建議選 Google 淺色模式)</label>
+                <div class="grid grid-cols-2 gap-2.5">
+                    <button onclick="setMapStyle('googleLight')" class="p-2.5 rounded-xl border border-slate-200 flex items-center space-x-2 text-xs font-bold bg-white shadow-sm hover:border-emerald-500 active:scale-98">
+                        <span class="w-4 h-4 rounded-full bg-amber-200 border border-amber-400"></span>
+                        <span>Google 淺色 (推薦)</span>
+                    </button>
+                    <button onclick="setMapStyle('dark')" class="p-2.5 rounded-xl border border-slate-200 flex items-center space-x-2 text-xs font-bold bg-slate-800 text-white shadow-sm hover:border-emerald-500 active:scale-98">
+                        <span class="w-4 h-4 rounded-full bg-slate-900 border border-emerald-400"></span>
+                        <span>暗黑夜間模式</span>
+                    </button>
+                    <button onclick="setMapStyle('street')" class="p-2.5 rounded-xl border border-slate-200 flex items-center space-x-2 text-xs font-bold bg-white shadow-sm hover:border-emerald-500 active:scale-98">
+                        <span class="w-4 h-4 rounded-full bg-emerald-100 border border-emerald-400"></span>
+                        <span>標準街景圖</span>
+                    </button>
+                    <button onclick="setMapStyle('satellite')" class="p-2.5 rounded-xl border border-slate-200 flex items-center space-x-2 text-xs font-bold bg-white shadow-sm hover:border-emerald-500 active:scale-98">
+                        <span class="w-4 h-4 rounded-full bg-blue-900 border border-blue-400"></span>
+                        <span>衛星地圖</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 綠色筆刷寬度 -->
+            <div class="mb-5">
+                <div class="flex justify-between items-center mb-1">
+                    <label class="text-xs font-bold text-slate-500">足跡線條粗細</label>
+                    <span id="val-linewidth" class="text-xs font-bold text-emerald-600">18 px</span>
+                </div>
+                <input type="range" id="input-linewidth" min="8" max="36" value="18" class="w-full accent-emerald-500 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- 資料管理 -->
+            <div class="pt-3 border-t border-slate-200/80 flex space-x-2">
+                <button id="btn-export-gpx" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-file-export"></i>
+                    <span>匯出 GPX 軌跡</span>
+                </button>
+                <button id="btn-clear-all" class="py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold transition">
+                    清除歷史
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 歷史紀錄 Drawer -->
+    <div id="modal-history" class="fixed inset-0 z-40 hidden">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" id="close-history-bg"></div>
+        <div class="absolute bottom-0 left-0 right-0 glass-panel rounded-t-3xl p-5 border-t border-white/50 max-h-[75vh] overflow-y-auto">
+            <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-4"></div>
+            <h2 class="text-base font-black text-slate-800 mb-2 flex items-center space-x-2">
+                <i class="fa-solid fa-clock-rotate-left text-emerald-500"></i>
+                <span>跨日自動歸檔紀錄</span>
+            </h2>
+            <p class="text-xs text-slate-500 mb-4">每日午夜自動儲存當天數據，但地圖上的綠色足跡會永久累積保留！</p>
+            
+            <div id="history-list-container" class="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
+                <!-- 動態注入歷史資料 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map = null;
+        let userMarker = null;
+        let watchPositionId = null;
+
+        let todayPath = [];
+        let allTimePoints = [];
+        let historyData = [];
+
+        let polylineOuter = null; 
+        let polylineInner = null; 
+        let circleGroup = null; 
+        let persistentHistoryGroup = null;
+
+        let totalDistance = 0;
+        let elapsedTime = 0;
+        let timerInterval = null;
+        let wakeLock = null;
+        let deferredPrompt = null;
+
+        let isDemoWalking = false;
+        let demoInterval = null;
+
+        const MAP_TILES = {
+            googleLight: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', 
+            street: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+            satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        };
+        let currentTileLayer = null;
+
+        let settings = {
+            style: 'googleLight',
+            lineWidth: 18
+        };
+
+        window.onload = function() {
+            initMap();
+            loadAllStoredData();
+            checkDailyRollover();
+            startGPSWatch();
+            setupEventListeners();
+            requestWakeLock();
+            setupPWAInstallPrompt();
+
+            timerInterval = setInterval(() => {
+                elapsedTime++;
+                updateStatsDisplay();
+                checkDailyRollover();
+            }, 1000);
+
+            const dateStr = new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' });
+            document.getElementById('date-display').innerText = dateStr;
+        };
+
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView([25.0330, 121.5654], 16);
+
+            currentTileLayer = L.tileLayer(MAP_TILES.googleLight, {
+                maxZoom: 19,
+                subdomains: 'abcd'
+            }).addTo(map);
+
+            L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+            persistentHistoryGroup = L.layerGroup().addTo(map);
+            circleGroup = L.layerGroup().addTo(map);
+
+            polylineOuter = L.polyline([], {
+                color: '#15803d',
+                weight: settings.lineWidth + 6,
+                opacity: 0.35,
+                lineCap: 'round',
+                lineJoin: 'round'
+            }).addTo(map);
+
+            polylineInner = L.polyline([], {
+                color: '#22c55e',
+                weight: settings.lineWidth,
+                opacity: 0.9,
+                lineCap: 'round',
+                lineJoin: 'round'
+            }).addTo(map);
+        }
+
+        function startGPSWatch() {
+            if (!navigator.geolocation) {
+                showToast('您的裝置不支援 GPS 位置獲取', 'fa-solid fa-triangle-exclamation');
+                return;
+            }
+
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 3000
+            };
+
+            watchPositionId = navigator.geolocation.watchPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    handleNewLocation(lat, lng);
+                },
+                (err) => {
+                    console.warn('GPS Error:', err.message);
+                },
+                options
+            );
+        }
+
+        function handleNewLocation(lat, lng) {
+            const newPt = [lat, lng];
+            
+            if (!userMarker) {
+                const userIcon = L.divIcon({
+                    className: 'custom-user-icon',
+                    html: `<div class="w-5 h-5 bg-emerald-500 rounded-full border-2 border-white shadow-lg pulse-dot"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+                userMarker = L.marker(newPt, { icon: userIcon }).addTo(map);
+                map.setView(newPt, 17);
+            } else {
+                userMarker.setLatLng(newPt);
+            }
+
+            if (todayPath.length > 0) {
+                const lastPt = todayPath[todayPath.length - 1];
+                const dist = calculateDistance(lastPt.lat, lastPt.lng, lat, lng);
+                if (dist > 0.003) {
+                    totalDistance += dist;
+                    todayPath.push({ lat, lng, timestamp: Date.now() });
+                    allTimePoints.push([lat, lng]);
+                    appendPathPoint(lat, lng);
+                    saveTodayData();
+                }
+            } else {
+                todayPath.push({ lat, lng, timestamp: Date.now() });
+                allTimePoints.push([lat, lng]);
+                appendPathPoint(lat, lng);
+                saveTodayData();
+            }
+
+            updateStatsDisplay();
+        }
+
+        function appendPathPoint(lat, lng) {
+            const pt = [lat, lng];
+            polylineOuter.addLatLng(pt);
+            polylineInner.addLatLng(pt);
+
+            const circle = L.circle(pt, {
+                radius: 12,
+                color: '#22c55e',
+                fillColor: '#22c55e',
+                fillOpacity: 0.25,
+                stroke: false
+            });
+            circleGroup.addLayer(circle);
+        }
+
+        function loadAllStoredData() {
+            const savedHistory = localStorage.getItem('green_footprint_history');
+            if (savedHistory) historyData = JSON.parse(savedHistory);
+
+            const savedAllTime = localStorage.getItem('green_footprint_alltime_points');
+            if (savedAllTime) {
+                allTimePoints = JSON.parse(savedAllTime);
+                renderPersistentHistory();
+            }
+
+            const savedToday = localStorage.getItem('green_footprint_today');
+            if (savedToday) {
+                const data = JSON.parse(savedToday);
+                todayPath = data.path || [];
+                totalDistance = data.distance || 0;
+                elapsedTime = data.elapsedTime || 0;
+
+                todayPath.forEach(p => appendPathPoint(p.lat, p.lng));
+            }
+        }
+
+        function renderPersistentHistory() {
+            persistentHistoryGroup.clearLayers();
+            if (allTimePoints.length === 0) return;
+
+            const historyPolyline = L.polyline(allTimePoints, {
+                color: '#22c55e',
+                weight: settings.lineWidth,
+                opacity: 0.6,
+                lineCap: 'round'
+            });
+            persistentHistoryGroup.addLayer(historyPolyline);
+        }
+
+        function saveTodayData() {
+            const todayStr = getTodayDateStr();
+            localStorage.setItem('green_footprint_last_date', todayStr);
+            localStorage.setItem('green_footprint_today', JSON.stringify({
+                path: todayPath,
+                distance: totalDistance,
+                elapsedTime: elapsedTime
+            }));
+            localStorage.setItem('green_footprint_alltime_points', JSON.stringify(allTimePoints));
+        }
+
+        function checkDailyRollover() {
+            const todayStr = getTodayDateStr();
+            const lastDate = localStorage.getItem('green_footprint_last_date');
+
+            if (lastDate && lastDate !== todayStr && todayPath.length > 0) {
+                const archiveEntry = {
+                    date: lastDate,
+                    distance: totalDistance.toFixed(2),
+                    duration: elapsedTime,
+                    pointsCount: todayPath.length
+                };
+                historyData.unshift(archiveEntry);
+                localStorage.setItem('green_footprint_history', JSON.stringify(historyData));
+
+                todayPath = [];
+                totalDistance = 0;
+                elapsedTime = 0;
+                polylineOuter.setLatLngs([]);
+                polylineInner.setLatLngs([]);
+                circleGroup.clearLayers();
+
+                renderPersistentHistory();
+                saveTodayData();
+
+                showToast(`已自動將 ${lastDate} 的數據歸檔！`, 'fa-solid fa-box-archive');
+            }
+        }
+
+        function updateStatsDisplay() {
+            document.getElementById('stat-distance').innerText = totalDistance.toFixed(2);
+            document.getElementById('stat-time').innerText = formatTime(elapsedTime);
+            
+            const hours = elapsedTime / 3600;
+            const speed = hours > 0 ? (totalDistance / hours) : 0;
+            document.getElementById('stat-speed').innerText = speed.toFixed(1);
+        }
+
+        function setMapStyle(styleKey) {
+            if (!MAP_TILES[styleKey]) return;
+            settings.style = styleKey;
+            if (currentTileLayer) map.removeLayer(currentTileLayer);
+            currentTileLayer = L.tileLayer(MAP_TILES[styleKey], { maxZoom: 19, subdomains: 'abcd' }).addTo(map);
+            showToast(`已切換地圖風格`, 'fa-solid fa-map');
+            document.getElementById('modal-settings').classList.add('hidden');
+        }
+
+        function setupEventListeners() {
+            document.getElementById('btn-recenter').onclick = () => {
+                if (userMarker) {
+                    map.flyTo(userMarker.getLatLng(), 17, { animate: true });
+                } else {
+                    showToast('等待 GPS 訊號中...', 'fa-solid fa-location-crosshairs');
+                }
+            };
+
+            document.getElementById('btn-settings').onclick = () => {
+                document.getElementById('modal-settings').classList.remove('hidden');
+            };
+            document.getElementById('close-settings-bg').onclick = () => {
+                document.getElementById('modal-settings').classList.add('hidden');
+            };
+
+            document.getElementById('btn-history').onclick = () => {
+                renderHistoryList();
+                document.getElementById('modal-history').classList.remove('hidden');
+            };
+            document.getElementById('close-history-bg').onclick = () => {
+                document.getElementById('modal-history').classList.add('hidden');
+            };
+
+            const inputWidth = document.getElementById('input-linewidth');
+            inputWidth.oninput = (e) => {
+                const val = parseInt(e.target.value);
+                settings.lineWidth = val;
+                document.getElementById('val-linewidth').innerText = val + ' px';
+                polylineOuter.setStyle({ weight: val + 6 });
+                polylineInner.setStyle({ weight: val });
+            };
+
+            document.getElementById('btn-demo').onclick = toggleDemoWalk;
+            document.getElementById('btn-export-gpx').onclick = exportGPX;
+
+            document.getElementById('btn-clear-all').onclick = () => {
+                if (confirm('確定要清除所有走過的綠色足跡紀錄嗎？此動作無法復原。')) {
+                    localStorage.clear();
+                    location.reload();
+                }
+            };
+        }
+
+        function renderHistoryList() {
+            const container = document.getElementById('history-list-container');
+            if (historyData.length === 0) {
+                container.innerHTML = `<div class="p-6 text-center text-slate-400 text-xs font-medium">目前尚無歷史歸檔紀錄</div>`;
+                return;
+            }
+
+            container.innerHTML = historyData.map(item => `
+                <div class="glass-panel p-3 rounded-xl flex items-center justify-between border border-slate-200/60 bg-white/80">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
+                            <i class="fa-solid fa-calendar-check"></i>
+                        </div>
+                        <div>
+                            <p class="font-bold text-xs text-slate-800">${item.date}</p>
+                            <p class="text-[10px] text-slate-400">歷時 ${formatTime(item.duration)}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-black text-xs text-emerald-600">${item.distance} km</p>
+                        <p class="text-[9px] text-slate-400">累積歸檔點數</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleDemoWalk() {
+            if (isDemoWalking) {
+                clearInterval(demoInterval);
+                isDemoWalking = false;
+                showToast('已結束模擬行走', 'fa-solid fa-pause');
+                document.getElementById('btn-demo').classList.remove('bg-amber-500');
+                document.getElementById('btn-demo').classList.add('bg-emerald-500');
+            } else {
+                isDemoWalking = true;
+                showToast('開始模擬行走探索中...', 'fa-solid fa-play');
+                document.getElementById('btn-demo').classList.remove('bg-emerald-500');
+                document.getElementById('btn-demo').classList.add('bg-amber-500');
+
+                let currLat = userMarker ? userMarker.getLatLng().lat : 25.0330;
+                let currLng = userMarker ? userMarker.getLatLng().lng : 121.5654;
+
+                demoInterval = setInterval(() => {
+                    currLat += (Math.random() - 0.45) * 0.0003;
+                    currLng += (Math.random() - 0.45) * 0.0003;
+                    handleNewLocation(currLat, currLng);
+                }, 1500);
+            }
+        }
+
+        function setupPWAInstallPrompt() {
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                const banner = document.getElementById('pwa-install-banner');
+                if (banner) banner.classList.remove('hidden');
+            });
+
+            document.getElementById('btn-pwa-install').onclick = async () => {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    showToast('已開始安裝 App 至桌面', 'fa-solid fa-download');
+                }
+                deferredPrompt = null;
+                document.getElementById('pwa-install-banner').classList.add('hidden');
+            };
+
+            document.getElementById('btn-pwa-dismiss').onclick = () => {
+                document.getElementById('pwa-install-banner').classList.add('hidden');
+            };
+        }
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {
+                console.warn('Wake Lock error:', err.message);
+            }
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
                       Math.sin(dLon/2) * Math.sin(dLon/2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
@@ -31,16 +660,11 @@
                 showToast('目前沒有足跡點位可供匯出', 'fa-solid fa-triangle-exclamation');
                 return;
             }
-            let gpx = `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="GreenFootprintApp">
-<trk><name>My Green Footprints</name><trkseg>
-`;
+            let gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="GreenFootprintApp">\n<trk><name>My Green Footprints</name><trkseg>\n`;
             allTimePoints.forEach(pt => {
-                gpx += `<trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>
-`;
+                gpx += `<trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>\n`;
             });
-            gpx += `</trkseg></trk>
-</gpx>`;
+            gpx += `</trkseg></trk>\n</gpx>`;
 
             const blob = new Blob([gpx], { type: 'application/gpx+xml' });
             const url = URL.createObjectURL(blob);
